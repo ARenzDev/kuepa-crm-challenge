@@ -3,7 +3,7 @@
 // @import_services
 
 // @import_models
-import { Lead, Campaign, Third, Adnetwork, Tracking, Message, Interaction } from "@app/models"
+import { Lead, Campaign, Third, Adnetwork, Tracking, Message, Interaction, Program } from "@app/models"
 
 // @import_utilities
 import { responseUtility } from "@core/utilities/responseUtility"
@@ -42,27 +42,50 @@ class LeadService {
         }
       }
       
+      if (!_params.first_name || !_params.last_name || !_params.email || !_params.mobile_phone || !_params.interestProgram) {
+        return responseUtility.error('lead.missing_fields');
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(_params.email)) {
+        return responseUtility.error('lead.invalid_email');
+      }
+
+      _params.full_name = `${_params.first_name} ${_params.last_name}`.trim();
+
       if(_params._id){
         const exists = await Lead.findOne({_id: _params._id}).lean()
         if(!exists) return responseUtility.error('lead.not_found');
         
+        const emailExists = await Lead.findOne({ email: _params.email, _id: { $ne: _params._id } }).lean();
+        if(emailExists) return responseUtility.error('lead.email_in_use');
+
         const lead = await Lead.findOneAndUpdate({_id: _params._id}, {$set: _params}, {new:true, lean:true})
-        
         
         return responseUtility.success({
           object: lead
         })
       } else {
+        const emailExists = await Lead.findOne({ email: _params.email }).lean();
+        if(emailExists) return responseUtility.error('lead.email_in_use');
+
+        let incremental = 1000;
+        const lastLead = await Lead.findOne().sort({ incremental: -1 }).lean();
+        if (lastLead && lastLead.incremental) {
+          incremental = lastLead.incremental + 1;
+        }
+        _params.incremental = incremental;
+
         const create = await Lead.create(_params)
         const lead = create.toObject()
-        
         
         return responseUtility.success({
           object: lead
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('error', error)
+      return { code: 500, error: error.message || 'Error interno del servidor' }
     }
   }
   
@@ -249,35 +272,49 @@ class LeadService {
     }
   }
   
-  public async list (_params) {
-    try{
+  public async list (_params: any) {
+    try {
       const where:any = {}
       
       let third
-      
       if(_params.user){
         third = await Third.findOne({user: _params.user}).lean()
         if(third) where.adviser = third._id.toString()
       }
       
+      const page = parseInt(_params.page) || 1
+      const limit = parseInt(_params.limit) || 100
+      const skip = (page - 1) * limit
       
-      let leads = await Lead.find(where)
-      .sort({created_at:-1})
-      .populate({
-        path: 'contact',
-        select: 'first_name last_name document number',
-        options: { lean:true }
-      })
-      .limit(100)
-      .lean()
-      
-      leads = leads.map(_l=>{
-        _l.full_name = `${_l.contact?.first_name} ${_l.contact?.last_name}`.trim()
-        return _l
-      })
+      const [leads, total] = await Promise.all([
+        Lead.find(where)
+          .sort({created_at:-1})
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Lead.countDocuments(where)
+      ])
       
       return responseUtility.success({
-        list:leads
+        list: leads,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      })
+    } catch (error: any) {
+      console.log('error', error)
+      return { code: 500, error: error.message || 'Error interno del servidor' }
+    }
+  }
+
+  public async programs (_params) {
+    try{
+      const programs = await Program.find({}).lean()
+      return responseUtility.success({
+        list: programs
       })
     } catch (error) {
       console.log('error', error)
@@ -296,13 +333,7 @@ class LeadService {
   
   public async get (_params:{_id:string}) {
     try{
-      const lead = await Lead.findOne({_id: _params._id})
-      .populate({
-        path: 'contact',
-        select: 'first_name last_name incremental document number',
-        options: { lean:true }
-      })
-      .lean()
+      const lead = await Lead.findOne({_id: _params._id}).lean()
       
       if(!lead) return responseUtility.error('lead.not_found');
       const interactions = await Interaction.find({'_ref.lead': _params._id})

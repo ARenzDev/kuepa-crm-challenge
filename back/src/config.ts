@@ -7,7 +7,7 @@ export default {
   databases: {
     mongo:{
       dev: {
-        uri: 'mongodb://127.0.0.1:27017/kuepa_test?retryWrites=true&w=majority&appName=Test'
+        uri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/kuepa_test?retryWrites=true&w=majority&appName=Test'
       }
     }
   },

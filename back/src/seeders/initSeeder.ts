@@ -1,5 +1,5 @@
 import { userService } from '@app/domains/user/userService'
-import { Adnetwork, Campaign, Third, Tracking, User } from '@app/models'
+import { Adnetwork, Campaign, Third, Tracking, User, Program } from '@app/models'
 import { IConsole } from '@client/client'
 import config from 'config'
 
@@ -35,6 +35,22 @@ export const run = async(_params, console:IConsole) => {
       } 
       await userService.upsert(user)
     }
+
+    const programs = [
+      { name: 'Técnico en Desarrollo de Software', description: 'Programa técnico en programación y desarrollo' },
+      { name: 'Técnico en Diseño Gráfico', description: 'Programa técnico en diseño y artes gráficas' },
+      { name: 'Técnico en Marketing Digital', description: 'Programa técnico en mercadeo y publicidad online' },
+      { name: 'Técnico en Administración de Empresas', description: 'Programa técnico en gestión de negocios' },
+      { name: 'Bachillerato para Adultos', description: 'Validación del bachillerato' },
+    ]
+
+    for (const program of programs) {
+      const exists = await Program.findOne({ name: program.name }).lean()
+      if (!exists) {
+        await Program.create(program)
+      }
+    }
+
   } catch (error) {
     console.log('error', error)
     return false

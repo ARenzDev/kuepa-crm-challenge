@@ -50,6 +50,12 @@ class LeadController {
     return responseUtility.build(res, response)
   }
   
+  public programs = async(req: Request, res: Response) => {
+    const _params = req._data()
+    const response = await this.service.programs(_params)
+    return responseUtility.build(res, response)
+  }
+  
   public external = async(req: Request, res: Response) => {
     const _params = req._data()
     const response = await this.service.external(_params)
