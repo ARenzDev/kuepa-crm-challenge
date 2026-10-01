@@ -1,0 +1,37 @@
+
+services:
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  backend:
+    build:
+      context: ./back
+    ports:
+      - "7001:7001"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/kuepa_test?retryWrites=true&w=majority
+    depends_on:
+      - mongodb
+    volumes:
+      - ./back:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./front
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:7001
+    depends_on:
+      - backend
+    volumes:
+      - ./front:/app
+      - /app/node_modules
+
+volumes:
+  mongodb_data:
